@@ -133,8 +133,9 @@ ggplot(iris, aes(Sepal.Length, Sepal.Width, Petal.Length,
 ## ----animation, eval = FALSE--------------------------------------------------
 # p <- ggplot(mountain, aes(x, y, z)) +
 #       geom_contour_3d(fill = "black", color = "white", linewidth = .5) +
-#       coord_3d(ratio = c(1.5, 2, 1), light = "none", zoom = 1.5) +
+#       coord_3d(ratio = c(1.5, 2, 1), light = "none", zoom = 1.25) +
 #       theme_void()
 # 
-# animate_3d(p, yaw = c(0, 360))
+# orbit_3d(p, yaw = c(360, 0), roll = c(-90, 0), n = c(24, 8),
+#          start = c(yaw = 300, roll = -60))
 

@@ -2,45 +2,38 @@
 % Please edit documentation in R/theme.R
 \name{element_rect}
 \alias{element_rect}
-\title{Rectangle theme element with alpha support}
+\title{Enhanced rectangle element with alpha support}
 \usage{
-element_rect(
-  fill = NULL,
-  colour = NULL,
-  linewidth = NULL,
-  linetype = NULL,
-  color = NULL,
-  inherit.blank = FALSE,
-  size = lifecycle::deprecated(),
-  alpha = NULL
-)
+element_rect(fill = NULL, alpha = NA, ...)
 }
 \arguments{
-\item{fill}{Fill color for the rectangle. Use \code{NA} for no fill.}
+\item{fill}{Fill colour for the rectangle.}
 
-\item{colour, color}{Line color for the rectangle border. Use \code{NA} for no border.}
+\item{alpha}{Transparency level applied to the fill of foreground or
+background panels in \code{coord_3d()}, ranging from 0 (completely
+transparent) to 1 (completely opaque). For \code{panel.foreground}, the
+alpha resolves in order: an explicit value here, then alpha inherited
+from \code{panel.background}, then a default of 0.2. For
+\code{panel.background}, an explicit value is used directly; otherwise
+the panel is fully opaque. Has no effect on other theme elements or in
+plots without a 3D coordinate system.}
 
-\item{linewidth}{Line width for the rectangle border.}
-
-\item{linetype}{Line type for the rectangle border (e.g., "solid", "dashed").}
-
-\item{inherit.blank}{Should this element inherit from \code{element_blank}?}
-
-\item{size}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}}
-Use \code{linewidth} instead.}
-
-\item{alpha}{Transparency level for the rectangle fill, ranging from 0 (completely transparent)
-to 1 (completely opaque). Particularly useful for styling foreground panels in 3D plots
-to create layered visual effects.}
+\item{...}{Additional arguments passed to \code{\link[ggplot2]{element_rect}},
+such as \code{colour}, \code{linewidth}, \code{linetype}, and
+\code{inherit.blank}.}
 }
 \value{
-A theme element object that can be used in \code{theme()} specifications.
+A \code{ggplot2::element_rect} theme element with an attached
+\code{"ggcube_alpha"} attribute.
 }
 \description{
 This function extends \code{ggplot2::element_rect()} to support transparency
-via an alpha parameter. It maintains full backward compatibility with the original
-\code{element_rect()} function while enabling transparent panel styling, which is
-particularly useful for foreground panels in 3D plots.
+via an \code{alpha} parameter, which is attached to the returned element as
+an R attribute (\code{"ggcube_alpha"}). The attribute survives ggplot2's
+theme inheritance machinery, so the alpha value set here is available to
+the renderer at draw time. The \code{alpha} parameter is consumed only by
+\code{coord_3d()}'s panel rendering and has no effect on other theme
+elements.
 }
 \examples{
 # Basic 3D plot with semi-transparent foreground panels
@@ -59,6 +52,5 @@ ggplot(mtcars, aes(mpg, wt, qsec)) +
 }
 \seealso{
 \code{\link[ggplot2]{element_rect}} for the original function,
-\code{\link{coord_3d}} for 3D coordinate systems that utilize foreground panels,
-\link{cube_theming} for details on panel/gridline/axis label styling.
+\code{\link{coord_3d}} for 3D coordinate systems that utilize foreground panels
 }

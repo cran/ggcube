@@ -70,7 +70,7 @@ and end of the animation. Default is 0.}
 after completing, creating a seamless loop. Default is \code{FALSE}.}
 
 \item{cores}{Number of CPU cores for parallel frame rendering. Default
-is 1 (sequential). Values greater than 1 use \code{\link[parallel:clusterApply]{parallel::parLapply()}}
+is 1 (sequential). Values greater than 1 use \code{\link[parallel:parLapply]{parallel::parLapply()}}
 to render frames in parallel, which can significantly speed up
 animation of complex plots. Note that progress reporting is not
 available during parallel rendering.}
@@ -94,7 +94,7 @@ Renders an animated GIF or MP4 of a rotating ggplot with \code{\link[=coord_3d]{
 smoothly interpolating rotation angles across frames.
 }
 \examples{
-\dontshow{if (requireNamespace("gifski", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (requireNamespace("gifski", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 \donttest{
 # Plot to animate. Note `anchor = "camera"` keeps light source from rotating.
 p <- ggplot() +
@@ -107,14 +107,15 @@ p <- ggplot() +
   theme_void()
 
 # Simple turntable rotation
-animate_3d(p, yaw = c(-30, 330))
+# (using small `nframes` to minimize runtime)
+animate_3d(p, yaw = c(-30, 330), nframes = 12)
 
 # Multi-segment orbit with pitch change
 animate_3d(p, yaw = c(0, 720), roll = c(-90, 0, -90),
-           nframes = 120, fps = 15)
+           nframes = 12, fps = 15)
 
 # Save to file (writes to a temporary path; specify your own to keep it)
-anim <- animate_3d(p, yaw = c(0, 360))
+anim <- animate_3d(p, yaw = c(0, 360), nframes = 12)
 anim_save_3d(anim, file.path(tempdir(), "rotating_surface.gif"))
 }
 \dontshow{\}) # examplesIf}
@@ -122,4 +123,5 @@ anim_save_3d(anim, file.path(tempdir(), "rotating_surface.gif"))
 \seealso{
 \code{\link[=anim_save_3d]{anim_save_3d()}} for saving animations to file.
 \code{\link[=gifski_renderer_3d]{gifski_renderer_3d()}} and \code{\link[=file_renderer_3d]{file_renderer_3d()}} for renderer options.
+\code{\link[=orbit_3d]{orbit_3d()}} for interactive drag-to-rotate ggcubes.
 }
