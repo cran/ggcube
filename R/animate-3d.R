@@ -103,9 +103,6 @@ animate_3d <- function(plot,
                        device = "png",
                        progress = interactive()) {
 
-      # Clear z scale cache to ensure clean state between animations
-      .z_scale_cache$scale <- NULL
-
       # --- Validate input plot ---
       if (!inherits(plot, "gg")) {
             stop("`plot` must be a ggplot object.", call. = FALSE)
@@ -302,21 +299,13 @@ render_frames_parallel <- function(plot, param_seqs, static_params,
             library(ggcube)
       })
 
-      # Capture the trained z scale from the main process
-      z_scale_cached <- .z_scale_cache$scale
-
-      # Export objects needed by the worker function
+      # Export objects needed by the worker function. The z scale rides along
+      # inside `plot`, so each worker's own build resolves it.
       parallel::clusterExport(cl, c("plot", "param_seqs", "static_params",
                                     "global_bounds", "frame_files",
                                     "width", "height", "res",
-                                    "device", "z_scale_cached"),
+                                    "device"),
                               envir = environment())
-
-      # Restore z scale cache on each worker
-      parallel::clusterEvalQ(cl, {
-            cache_env <- get(".z_scale_cache", envir = asNamespace("ggcube"))
-            cache_env$scale <- z_scale_cached
-      })
 
       # Render in parallel. The worker function is defined inline so that
       # it closes over the exported variables directly, avoiding the need
@@ -548,7 +537,9 @@ extract_static_coord_params <- function(coord) {
             ylabels = coord$ylabels,
             zlabels = coord$zlabels,
             rotate_labels = coord$rotate_labels,
+            title_position = coord$title_position,
             scales = coord$scales,
+            scale_depth = coord$scale_depth,
             ratio = coord$ratio,
             zoom = coord$zoom,
             light = coord$light

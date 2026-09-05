@@ -19,9 +19,10 @@ coord_3d(
   title_position = c("auto", "center"),
   rotate_labels = TRUE,
   scales = "free",
+  scale_depth = TRUE,
   ratio = c(1, 1, 1),
   zoom = 1,
-  light = ggcube::light(),
+  light = waiver(),
   ...
 )
 }
@@ -95,6 +96,26 @@ as scaled by \code{ratio}. Similar to \code{coord_fixed()} but for 3D
 (visual ratios match the labeled axis ranges).
 }}
 
+\item{scale_depth}{Controls how axis-related elements scale with viewing
+distance under perspective projection, in which objects nearer the viewer are drawn
+larger. Accepts:
+\itemize{
+\item \code{TRUE} (default) or \code{FALSE}: full depth scaling, or none.
+\item A single number: applied to every element. \code{1} is the default
+strength, \code{0} disables scaling, values below 1 subdue the effect and
+values above 1 exaggerate it. Negative values are an error.
+\item A named numeric vector, to set elements individually. Names are
+\code{"grid"} (panel gridlines), \code{"border"} (cube edges), and
+\code{"text"} (axis tick labels), after the theme elements they govern.
+Unnamed elements keep their default.
+}
+Strength \code{s} maps a depth factor \code{d} to \code{d^s}, so the effect
+scales geometrically and never produces a non-positive size. This affects axis-related
+elements only; layers have their own \code{scale_depth} parameters. Axis
+titles are never depth-scaled, since a single title has no series of sizes to
+read as perspective. Has no effect when \code{persp = FALSE}, where all depth
+factors are 1.}
+
 \item{ratio}{Numeric vector of length 3 specifying relative axis lengths as
 \code{c(x, y, z)}. Defaults to \code{c(1, 1, 1)} for equal proportions.
 \itemize{
@@ -106,10 +127,11 @@ as scaled by \code{ratio}. Similar to \code{coord_fixed()} but for 3D
 than 1 zoom in (tighter framing, may crop edges), values less than 1
 zoom out (more whitespace around the plot). Default is 1.}
 
-\item{light}{A lighting specification object created by \code{\link[=light]{light()}},\code{"none"} to disable
-lighting, or \code{NULL} to inherit plot-level lighting specs from the coord. Specify
-plot-level lighting in \code{coord_3d()} and layer-specific lighting in \verb{geom_*3d()}
-functions.}
+\item{light}{Lighting specification for the plot. Usually left unset: add
+\code{\link[=light]{light()}} to the plot instead, which is the recommended way to set plot-level
+lighting and can appear anywhere in the plot expression. Supplying \code{light}
+here as well as adding \code{\link[=light]{light()}} to the plot is an error. Use \code{NULL} to
+disable lighting, or \code{light("none")} for an equivalent lighting object.}
 
 \item{...}{Additional arguments reserved for internal use.}
 }
@@ -128,8 +150,8 @@ p <- ggplot() +
   geom_function_3d(
     aes(fill = after_stat(z), color = after_stat(z)),
     fun = function(x, y) sin(x) * cos(y),
-    xlim = c(-pi, pi), ylim = c(-pi, pi),
-    n = 50, light = light("direct", contrast = .7)) +
+    xlim = c(-pi, pi), ylim = c(-pi, pi), n = 50) +
+  light("direct", contrast = .7) +
   scale_fill_viridis_c() +
   scale_color_viridis_c() +
   theme(legend.position = "none")

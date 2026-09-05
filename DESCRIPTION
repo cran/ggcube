@@ -1,7 +1,7 @@
 Package: ggcube
 Type: Package
 Title: 3D Plotting with 'ggplot2'
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: 
     person("Matthew", "Kling", , "mattkling@berkeley.edu", 
     role = c("aut", "cre", "cph"))
@@ -19,15 +19,15 @@ Imports: dplyr, tidyr, stringr, scales, rlang, grid, lifecycle,
         labeling, purrr, magrittr, polyclip, isoband, systemfonts,
         htmlwidgets
 Suggests: alphashape3d, av, base64enc, geometry, gifski, gtable, knitr,
-        MASS, mgcv, patchwork, progress, ragg, rmarkdown, rstudioapi,
-        shiny, testthat (>= 3.0.0)
+        MASS, mgcv, patchwork, progress, ragg, rjson, rmarkdown,
+        rstudioapi, shiny, testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.0.0
 NeedsCompilation: no
-Packaged: 2026-07-21 13:50:13 UTC; matthewkling
+Packaged: 2026-09-05 14:10:38 UTC; matthewkling
 Author: Matthew Kling [aut, cre, cph]
 Maintainer: Matthew Kling <mattkling@berkeley.edu>
 Repository: CRAN
-Date/Publication: 2026-07-21 14:30:02 UTC
+Date/Publication: 2026-09-05 14:30:02 UTC

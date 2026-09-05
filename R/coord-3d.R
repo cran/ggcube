@@ -58,6 +58,25 @@
 #' @param rotate_labels Logical indicating whether axis labels (text and titles) should automatically
 #'   rotate to align with the projected axis directions. When \code{FALSE}, uses theme
 #'   text and title angle settings.
+#' @param scale_depth Controls how axis-related elements scale with viewing
+#'   distance under perspective projection, in which objects nearer the viewer are drawn
+#'   larger. Accepts:
+#'   \itemize{
+#'     \item \code{TRUE} (default) or \code{FALSE}: full depth scaling, or none.
+#'     \item A single number: applied to every element. \code{1} is the default
+#'       strength, \code{0} disables scaling, values below 1 subdue the effect and
+#'       values above 1 exaggerate it. Negative values are an error.
+#'     \item A named numeric vector, to set elements individually. Names are
+#'       \code{"grid"} (panel gridlines), \code{"border"} (cube edges), and
+#'       \code{"text"} (axis tick labels), after the theme elements they govern.
+#'       Unnamed elements keep their default.
+#'   }
+#'   Strength \code{s} maps a depth factor \code{d} to \code{d^s}, so the effect
+#'   scales geometrically and never produces a non-positive size. This affects axis-related
+#'   elements only; layers have their own \code{scale_depth} parameters. Axis
+#'   titles are never depth-scaled, since a single title has no series of sizes to
+#'   read as perspective. Has no effect when \code{persp = FALSE}, where all depth
+#'   factors are 1.
 #' @param scales Character string specifying aspect ratio behavior:
 #'   \itemize{
 #'     \item \code{"free"} (default): Each axis scales independently to fill cube space,
@@ -73,7 +92,11 @@
 #'     \item With \code{scales = "free"}: Ratios apply to scaled cube coordinates
 #'     \item With \code{scales = "fixed"}: Ratios apply to original data coordinates
 #'   }
-#' @inheritParams light_param
+#' @param light Lighting specification for the plot. Usually left unset: add
+#'   [light()] to the plot instead, which is the recommended way to set plot-level
+#'   lighting and can appear anywhere in the plot expression. Supplying `light`
+#'   here as well as adding [light()] to the plot is an error. Use `NULL` to
+#'   disable lighting, or `light("none")` for an equivalent lighting object.
 #' @param ... Additional arguments reserved for internal use.
 #'
 #' @examples
@@ -82,8 +105,8 @@
 #'   geom_function_3d(
 #'     aes(fill = after_stat(z), color = after_stat(z)),
 #'     fun = function(x, y) sin(x) * cos(y),
-#'     xlim = c(-pi, pi), ylim = c(-pi, pi),
-#'     n = 50, light = light("direct", contrast = .7)) +
+#'     xlim = c(-pi, pi), ylim = c(-pi, pi), n = 50) +
+#'   light("direct", contrast = .7) +
 #'   scale_fill_viridis_c() +
 #'   scale_color_viridis_c() +
 #'   theme(legend.position = "none")
@@ -165,9 +188,10 @@ coord_3d <- function(pitch = 0, roll = -60, yaw = -30,
                      title_position = c("auto", "center"),
                      rotate_labels = TRUE,
                      scales = "free",
+                     scale_depth = TRUE,
                      ratio = c(1, 1, 1),
                      zoom = 1,
-                     light = ggcube::light(),
+                     light = waiver(),
                      ...) {
 
       # Capture internal-only params from ...
@@ -193,6 +217,8 @@ coord_3d <- function(pitch = 0, roll = -60, yaw = -30,
 
       title_position <- match.arg(title_position)
 
+      scale_depth <- resolve_scale_depth(scale_depth)
+
       list(
             ggproto(NULL, Coord3D,
                     pitch = pitch, roll = roll, yaw = yaw,
@@ -201,16 +227,124 @@ coord_3d <- function(pitch = 0, roll = -60, yaw = -30,
                     panels = panels,
                     rotate_labels = rotate_labels,
                     scales = scales,
+                    scale_depth = scale_depth,
                     ratio = ratio,
                     zoom = zoom,
                     xlabels = xlabels, ylabels = ylabels, zlabels = zlabels,
                     light = light,
+                    light_explicit = !inherits(light, "waiver"),
                     title_position = title_position,
                     fixed_bounds = fixed_bounds
             ),
             theme(plot.margin = margin(20, 20, 20, 20, "pt"))
       )
 }
+
+# Depth scaling -----------------------------------------------------------
+
+# Axis furniture whose size responds to viewing distance, named after the
+# theme elements they govern. Axis titles are deliberately absent.
+ggcube_depth_elements <- c("grid", "border", "ticks", "text")
+
+# Apply a strength exponent to a depth factor.
+#
+# depth_scale is a ratio (reference distance over actual distance), so
+# interpolating it geometrically rather than linearly keeps the result
+# positive for every strength and makes near and far effects symmetric.
+# Strength 1 is the identity; 0 disables scaling.
+apply_depth_strength <- function(depth_scale, strength = 1) {
+      if (is.null(strength) || length(strength) != 1 || !is.finite(strength)) {
+            strength <- 1
+      }
+      if (strength == 1) return(depth_scale)
+
+      result <- pmax(depth_scale, 0) ^ strength
+      result[!is.finite(result)] <- 1
+      result
+}
+
+# Look up one element's strength on a coord, tolerating coords built before
+# this parameter existed.
+depth_strength <- function(coord, element) {
+      strengths <- coord$scale_depth
+      if (is.null(strengths)) return(1)
+
+      value <- unname(strengths[element])
+      if (length(value) != 1 || is.na(value)) return(1)
+      value
+}
+
+# Guard a computed linewidth against non-finite or negative values.
+safe_lwd <- function(lwd, fallback) {
+      invalid <- !is.finite(lwd) | lwd < 0
+      if (any(invalid)) lwd[invalid] <- fallback
+      lwd
+}
+
+# Normalise the user-facing `scale_depth` argument into a named numeric
+# vector covering every element.
+resolve_scale_depth <- function(scale_depth) {
+      defaults <- stats::setNames(rep(1, length(ggcube_depth_elements)),
+                                  ggcube_depth_elements)
+
+      if (is.null(scale_depth)) return(defaults)
+
+      if (is.logical(scale_depth)) {
+            if (length(scale_depth) != 1 || is.na(scale_depth)) {
+                  rlang::abort("`scale_depth` must be TRUE, FALSE, a single number, or a named numeric vector.")
+            }
+            return(stats::setNames(rep(as.numeric(scale_depth), length(defaults)),
+                                   names(defaults)))
+      }
+
+      if (!is.numeric(scale_depth) || length(scale_depth) == 0) {
+            rlang::abort("`scale_depth` must be TRUE, FALSE, a single number, or a named numeric vector.")
+      }
+
+      if (any(!is.finite(scale_depth))) {
+            rlang::abort("`scale_depth` values must be finite.")
+      }
+
+      if (any(scale_depth < 0)) {
+            rlang::abort(c(
+                  "`scale_depth` values must be non-negative.",
+                  i = "Negative values would invert the depth cue, drawing distant elements larger than near ones."
+            ))
+      }
+
+      if (is.null(names(scale_depth))) {
+            if (length(scale_depth) != 1) {
+                  rlang::abort(c(
+                        "`scale_depth` must be a single number, or a named numeric vector.",
+                        i = paste0("Valid names are ",
+                                   paste0("`", ggcube_depth_elements, "`", collapse = ", "), ".")
+                  ))
+            }
+            return(stats::setNames(rep(scale_depth, length(defaults)), names(defaults)))
+      }
+
+      if (any(names(scale_depth) == "")) {
+            rlang::abort("`scale_depth` must be either fully named or a single unnamed number.")
+      }
+
+      if (anyDuplicated(names(scale_depth)) > 0) {
+            rlang::abort("`scale_depth` has duplicate names.")
+      }
+
+      unknown <- setdiff(names(scale_depth), ggcube_depth_elements)
+      if (length(unknown) > 0) {
+            rlang::abort(c(
+                  paste0("Unknown `scale_depth` element", if (length(unknown) > 1) "s" else "",
+                         ": ", paste0("`", unknown, "`", collapse = ", "), "."),
+                  i = paste0("Valid names are ",
+                             paste0("`", ggcube_depth_elements, "`", collapse = ", "), ".")
+            ))
+      }
+
+      defaults[names(scale_depth)] <- scale_depth
+      defaults
+}
+
 
 #' Detect if a scale transformation flips direction
 #'
@@ -307,7 +441,8 @@ Coord3D <- ggproto("Coord3D", CoordCartesian,
                    scales = "free",
                    ratio = c(1, 1, 1),
                    zoom = 1,
-                   light = NULL,
+                   light = waiver(),
+                   light_explicit = FALSE,
 
                    plot_bounds = c(0, 1, 0, 1),  # [xmin, xmax, ymin, ymax]
 
@@ -341,14 +476,16 @@ Coord3D <- ggproto("Coord3D", CoordCartesian,
                          # Get standard panel params from parent
                          panel_params <- ggproto_parent(CoordCartesian, self)$setup_panel_params(scale_x, scale_y, params)
 
-                         # Train and recover z scale
-                         train_z_scale()
-                         scale_z <- .z_scale_cache$scale
-                         if (is.null(scale_z)) { # Create default z scale if none exists (e.g., when using stat_function_3d)
+                         # Recover and train the plot's own z scale
+                         scale_z <- find_plot_z_scale()
+                         if (is.null(scale_z)) {
+                               # The plot has no z scale, which happens when z is
+                               # stat-computed rather than mapped (e.g. with
+                               # stat_function_3d()) and so ggplot2 never added a
+                               # default. Build one for this panel.
                                scale_z <- scale_z_continuous()
-                               # scale_z$train(c(-10, 10))
-                               .z_scale_cache$scale <- scale_z
                          }
+                         train_z_scale(scale_z)
 
                          # Translate face names to account for scale direction flips
                          self$panels <- translate_face_names(self$panels, scale_x, scale_y, scale_z)
@@ -447,6 +584,12 @@ Coord3D <- ggproto("Coord3D", CoordCartesian,
 
                                      if (!is.null(selected_grid)) {
                                            selected_grid_transformed <- transform_3d_standard(selected_grid, panel_params$proj)
+
+                                           # transform_3d_standard() overwrites x/y/z in place, so keep
+                                           # the pre-projection copy: axis ticks are built in cube space
+                                           # and need the unprojected break coordinates.
+                                           panel_params$grid_standard <- selected_grid
+
                                            panel_params$grid_transformed <- selected_grid_transformed
                                            panel_params$grid_transformed$face <- selected_grid$face
                                            panel_params$grid_transformed$group <- selected_grid$group
@@ -459,10 +602,12 @@ Coord3D <- ggproto("Coord3D", CoordCartesian,
                                            panel_params$grid_transformed$end_boundaries <- selected_grid$end_boundaries
                                      } else {
                                            panel_params$grid_transformed <- NULL
+                                           panel_params$grid_standard <- NULL
                                      }
                                } else {
                                      # No visible faces - no grid to render
                                      panel_params$grid_transformed <- NULL
+                                     panel_params$grid_standard <- NULL
                                }
                          } else {
                                # No visible faces - use minimal bounds (just cube corners)
@@ -477,10 +622,25 @@ Coord3D <- ggproto("Coord3D", CoordCartesian,
                                panel_params$plot_bounds <- bounds_info$bounds
                                self$bounds_aspect <- bounds_info$aspect
                                panel_params$grid_transformed <- NULL
+                               panel_params$grid_standard <- NULL
                          }
 
-                         # add light specs
-                         panel_params$light <- self$light
+                         # Resolve lighting. `coord_3d(light = )` is explicit and
+                         # takes precedence; otherwise a plot-level `+ light()`
+                         # applies; otherwise the package default. `NULL` is
+                         # preserved as an explicit request for no lighting.
+                         # The resolved spec goes to `panel_params`, never back
+                         # to `self`: the coord is shared by reference with every
+                         # plot derived from this one, and overwriting the
+                         # `waiver()` sentinel would make an inherited
+                         # `+ light()` indistinguishable from an explicit
+                         # `coord_3d(light = )` on any subsequent build.
+                         pending <- find_pending_light()
+                         if (!is.null(pending) && isTRUE(self$light_explicit)) {
+                               abort_double_light()
+                         }
+                         effective_light <- if (is.null(pending)) self$light else pending
+                         panel_params$light <- resolve_light(effective_light)
 
                          return(panel_params)
                    },
@@ -517,7 +677,7 @@ Coord3D <- ggproto("Coord3D", CoordCartesian,
                    transform = function(self, data, panel_params) {
 
                          # Add light specs if applicable
-                         data <- attach_light(data, self$light)
+                         data <- attach_light(data, panel_params$light)
 
                          # Restore z=0 for baseline vertices, if applicable (stat_bar_3d)
                          if ("z0" %in% names(data)) {
@@ -711,26 +871,18 @@ get_scale_names <- function(scale_obj, axis_name) {
       scale_name <- if (!is.null(scale_obj)) scale_obj$name %||% waiver() else waiver()
 
       # TRY TO FIND PLOT OBJECT AND EXTRACT BOTH LABELS AND AESTHETIC VARS
-      plot_obj <- NULL
+      plot_obj <- find_build_plot()
       plot_labels <- NULL
       aesthetic_vars <- NULL
 
-      tryCatch({
-            for (i in 1:25) {
-                  env <- parent.frame(i)
-                  if (exists("plot", envir = env)) {
-                        potential_plot <- get("plot", envir = env)
-                        if (inherits(potential_plot, "ggplot")) {
-                              plot_obj <- potential_plot
-                              plot_labels <- potential_plot$labels
-                              aesthetic_vars <- extract_aesthetic_vars(potential_plot)
-                              break
-                        }
-                  }
-            }
-      }, error = function(e) {
-            # Ignore errors - will use defaults
-      })
+      if (!is.null(plot_obj)) {
+            plot_labels <- plot_obj$labels
+            tryCatch({
+                  aesthetic_vars <- extract_aesthetic_vars(plot_obj)
+            }, error = function(e) {
+                  # Ignore errors - will use defaults
+            })
+      }
 
       # RESOLVE FINAL NAME WITH FALLBACK HIERARCHY:
       # 1. Explicit scale name (from scale constructors like scale_x_continuous(name = "..."))
@@ -754,7 +906,44 @@ get_scale_names <- function(scale_obj, axis_name) {
       return(final_name)
 }
 
-train_z_scale <- function(){
+#' Find the z scale belonging to the plot being built
+#'
+#' The z scale rides on the plot like any other scale: `+ scale_z_continuous()`
+#' lands in `plot$scales`, and ggplot2 constructs a default one itself when `z`
+#' is mapped but no scale was supplied. `setup_panel_params()` is handed only
+#' the x and y scales, so this reaches the plot to recover the z scale that
+#' belongs to it. Because `ggplot_build()` clones the scales list before
+#' building, the returned scale is a per-build object that is safe to train.
+#'
+#' @return A z scale object, or `NULL` if the plot has none.
+#' @keywords internal
+#' @noRd
+find_plot_z_scale <- function() {
+      p <- find_build_plot()
+      if (is.null(p)) return(NULL)
+      scales <- p$scales
+      if (is.null(scales)) return(NULL)
+      scales$get_scales("z")
+}
+
+#' Train a z scale on the layer data of the plot being built
+#'
+#' `Layout$setup_panel_params()` runs before ggplot2 trains non-position
+#' scales, so the z scale still has an empty range when `coord_3d()` needs its
+#' limits. The layer data has no channel into the coord either, so it too is
+#' reached by walking parent frames.
+#'
+#' Trains on `zend`, `zmin` and a zero baseline where present, since those
+#' aren't among the scale's aesthetics and so would never be trained by
+#' ggplot2 itself.
+#'
+#' @param scale_z A z scale object.
+#' @return Called for its side effect on `scale_z`.
+#' @keywords internal
+#' @noRd
+train_z_scale <- function(scale_z){
+
+      if (is.null(scale_z)) return(invisible(NULL))
 
       # Walk parent frames to find layer data
       data <- NULL
@@ -772,23 +961,23 @@ train_z_scale <- function(){
             }
       }, error = function(e) {})
 
-      if (!is.null(data) && !is.null(.z_scale_cache$scale)) {
+      if (!is.null(data)) {
             for (layer_data in data) {
 
                   # Train on z column
                   if ("z" %in% names(layer_data) && nrow(layer_data) > 0) {
 
-                        if(inherits(.z_scale_cache$scale, "ScaleContinuousPosition")) {
-                              .z_scale_cache$scale$train(layer_data$z)
+                        if(inherits(scale_z, "ScaleContinuousPosition")) {
+                              scale_z$train(layer_data$z)
                         }
 
-                        if(inherits(.z_scale_cache$scale, "ScaleDiscretePosition")) {
+                        if(inherits(scale_z, "ScaleDiscretePosition")) {
                               if("z_raw" %in% names(layer_data)) {
-                                    .z_scale_cache$scale$range_c$train(layer_data$z)
-                                    .z_scale_cache$scale$train(layer_data$z_raw)
+                                    scale_z$range_c$train(layer_data$z)
+                                    scale_z$train(layer_data$z_raw)
                               } else {
-                                    .z_scale_cache$scale$range_c$train(as.integer(factor(layer_data$z)))
-                                    .z_scale_cache$scale$train(layer_data$z)
+                                    scale_z$range_c$train(as.integer(factor(layer_data$z)))
+                                    scale_z$train(layer_data$z)
                               }
                         }
                   }
@@ -796,36 +985,38 @@ train_z_scale <- function(){
                   # Train on zend column if present (for segment geoms)
                   if ("zend" %in% names(layer_data) && nrow(layer_data) > 0) {
 
-                        if(inherits(.z_scale_cache$scale, "ScaleContinuousPosition")) {
-                              .z_scale_cache$scale$train(layer_data$zend)
+                        if(inherits(scale_z, "ScaleContinuousPosition")) {
+                              scale_z$train(layer_data$zend)
                         }
 
-                        if(inherits(.z_scale_cache$scale, "ScaleDiscretePosition")) {
+                        if(inherits(scale_z, "ScaleDiscretePosition")) {
                               if("zend_raw" %in% names(layer_data)) {
-                                    .z_scale_cache$scale$range_c$train(layer_data$zend)
-                                    .z_scale_cache$scale$train(layer_data$zend_raw)
+                                    scale_z$range_c$train(layer_data$zend)
+                                    scale_z$train(layer_data$zend_raw)
                               } else {
-                                    .z_scale_cache$scale$range_c$train(as.integer(factor(layer_data$zend)))
-                                    .z_scale_cache$scale$train(layer_data$zend)
+                                    scale_z$range_c$train(as.integer(factor(layer_data$zend)))
+                                    scale_z$train(layer_data$zend)
                               }
                         }
                   }
 
                   # Train on zmin column if present (for col geoms with variable baseline)
                   if ("zmin" %in% names(layer_data) && nrow(layer_data) > 0) {
-                        if(inherits(.z_scale_cache$scale, "ScaleContinuousPosition")) {
-                              .z_scale_cache$scale$train(layer_data$zmin)
+                        if(inherits(scale_z, "ScaleContinuousPosition")) {
+                              scale_z$train(layer_data$zmin)
                         }
                   }
 
                   # Train on 0 if z0 column exists (for bar geoms with fixed baseline)
                   if ("z0" %in% names(layer_data) && nrow(layer_data) > 0) {
-                        if(inherits(.z_scale_cache$scale, "ScaleContinuousPosition")) {
-                              .z_scale_cache$scale$train(0)
+                        if(inherits(scale_z, "ScaleContinuousPosition")) {
+                              scale_z$train(0)
                         }
                   }
             }
       }
+
+      invisible(NULL)
 }
 
 #' Check if theme is void-like (has multiple key elements set to element_blank)

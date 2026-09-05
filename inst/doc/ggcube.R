@@ -29,8 +29,8 @@ ggplot(mpg, aes(displ, hwy, drv, color = class)) +
 ggplot(mountain, aes(x, y, z)) +
       geom_surface_3d(aes(fill = z, color = z)) +
       scale_fill_viridis_c() + scale_color_viridis_c() +
-      coord_3d(ratio = c(1.5, 2, 1), expand = FALSE, panels = "zmin",
-               light = light(direction = c(1, 0, 0))) +
+      coord_3d(ratio = c(1.5, 2, 1), expand = FALSE, panels = "zmin") +
+      light(direction = c(1, 0, 0)) +
       guides(fill = guide_colorbar_3d()) +
       theme_light()
 
@@ -78,10 +78,10 @@ ggplot(df, aes(x, y, z, label = label, fill = x)) +
 
 ## ----lighting-----------------------------------------------------------------
 p <- ggplot(sphere_points, aes(x, y, z)) +
-      geom_hull_3d(fill = "#9e2602", color = "#5e1600")
+      geom_hull_3d(fill = "#9e2602", color = "#5e1600") +
+      coord_3d()
 
-p + coord_3d(light = light(method = "direct", mode = "hsl",
-                           direction = c(0, 0, 1)))
+p + light(method = "direct", mode = "hsl", direction = c(0, 0, 1))
 
 ## ----zlim, fig.show = "hide"--------------------------------------------------
 ggplot(mtcars, aes(mpg, wt, z = qsec)) +
@@ -132,8 +132,8 @@ ggplot(iris, aes(Sepal.Length, Sepal.Width, Petal.Length,
 
 ## ----animation, eval = FALSE--------------------------------------------------
 # p <- ggplot(mountain, aes(x, y, z)) +
-#       geom_contour_3d(fill = "black", color = "white", linewidth = .5) +
-#       coord_3d(ratio = c(1.5, 2, 1), light = "none", zoom = 1.25) +
+#       geom_contour_3d(fill = "black", color = "white", linewidth = .5, light = "none") +
+#       coord_3d(ratio = c(1.5, 2, 1), zoom = 1.25) +
 #       theme_void()
 # 
 # orbit_3d(p, yaw = c(360, 0), roll = c(-90, 0), n = c(24, 8),

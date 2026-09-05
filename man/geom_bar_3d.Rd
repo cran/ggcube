@@ -86,10 +86,11 @@ Note that this setting acts jointly with backface culling, which removes faces w
 interior faces the viewer -- e.g., when \code{cull_backfaces = TRUE} and \code{faces = "all"}
 (the default), only front faces are rendered.}
 
-\item{light}{A lighting specification object created by \code{\link[=light]{light()}},\code{"none"} to disable
-lighting, or \code{NULL} to inherit plot-level lighting specs from the coord. Specify
-plot-level lighting in \code{coord_3d()} and layer-specific lighting in \verb{geom_*3d()}
-functions.}
+\item{light}{A lighting specification object created by \code{\link[=light]{light()}}, \code{light("none")}
+or the string \code{"none"} to disable lighting, or \code{NULL} to inherit plot-level
+lighting. Set plot-level lighting by adding \code{\link[=light]{light()}} to the plot, and
+layer-specific lighting via the \code{light} argument of \verb{geom_*_3d()} functions,
+which takes precedence.}
 
 \item{cull_backfaces}{Logical indicating whether to remove back-facing polygons
 from rendering. This is primarily for performance optimization but may be useful
@@ -101,8 +102,13 @@ or explicitly disabled).}
 
 \item{sort_method}{Depth sorting algorithm. See \link{sorting_methods} for details.}
 
-\item{scale_depth}{Logical indicating whether polygon linewidths should be scaled to make closer lines
-wider and farther lines narrower. Default is TRUE. Scaling is based on the mean depth of a polygon.}
+\item{scale_depth}{Controls whether polygon linewidths are scaled to make closer lines
+wider and farther lines narrower, based on the mean depth of a polygon. \code{TRUE}
+(the default) applies full scaling and \code{FALSE} disables it; a number sets the
+strength directly, where \code{1} matches \code{TRUE}, \code{0} matches \code{FALSE}, values below
+1 subdue the effect and values above 1 exaggerate it. This affects the layer
+only; use \code{coord_3d(scale_depth = )} for gridlines, cube borders, axis ticks,
+and axis text.}
 
 \item{force_convex}{Logical indicating whether to remove polygon vertices that are not part of the
 convex hull. Default value varies by geom. Specifying TRUE can help reduce artifacts in surfaces
